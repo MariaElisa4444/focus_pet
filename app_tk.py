@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 
-# ---------- Пути ----------
+# Пути
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"; DATA.mkdir(exist_ok=True)
 ASSETS = ROOT / "assets"
@@ -14,9 +14,9 @@ SPRITES = ASSETS / "sprites"
 UI = ASSETS / "ui"
 PROGRESS = DATA / "progress.json"
 
-# ---------- Параметры ----------
+# Параметры
 FOCUS_CHOICES = [0.1, 1, 5, 10, 15, 20, 25, 30, 40, 45, 50, 60]
-SESSIONS_CHOICES = list(range(1, 9))            # 1..8
+SESSIONS_CHOICES = list(range(1, 9))
 BREAK_CHOICES = [0.1, 1, 2, 3, 5, 7, 10, 15, 20, 25]
 POINTS_PER_MIN = 1
 
