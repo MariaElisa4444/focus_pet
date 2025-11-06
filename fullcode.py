@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 
-# ---------- Пути ----------
+# Пути
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"; DATA.mkdir(exist_ok=True)
 ASSETS = ROOT / "assets"
@@ -29,19 +29,19 @@ MOODS  = ("sad", "neutral", "happy")
 
 # Карты файлов сцен по стадии и настроению
 SCENES = {
-    "baby":  {"sad": "baby_sad.png",  "neutral": "baby_neutral.png",  "happy": "baby_happy.png"},
-    "teen":  {"sad": "teen_sad.png",  "neutral": "teen_neutral.png",  "happy": "teen_happy.png"},
-    "adult": {"sad": "adult_sad.png", "neutral": "adult_neutral.png", "happy": "adult_happy.png"},
+    "baby":  {"sad": "cat2.png",  "neutral": "cat1.png",  "happy": "cat3.png"},
+    "teen":  {"sad": "cat5.png",  "neutral": "cat4.png",  "happy": "cat6.png"},
+    "adult": {"sad": "cat13.png", "neutral": "cat10.png", "happy": "cat12.png"},
 }
-ADULT_REST_FRAMES = ["adult_rest1.png", "adult_rest2.png", "adult_rest3.png"]  # перерыв-анимация
+ADULT_REST_FRAMES = ["cat10.png", "cat17.png", "cat18.png"]  # перерыв-анимация
 
 # «Долгое отсутствие» — после этого кот станет sad
 IDLE_SECONDS = 60 * 60   # 1 час
 
 # Размер сцены (логический); фактически будем подгонять под окно
-SCENE_W, SCENE_H = 1280, 720
+SCENE_W, SCENE_H = 1536, 1024
 
-# ---------- Утилиты ----------
+# Утилиты
 def format_mmss(sec: float) -> str:
     s = max(0, int(round(sec)))
     m, s = divmod(s, 60)
@@ -55,7 +55,7 @@ def load_photo_fit(path: Path, max_w: int, max_h: int) -> ImageTk.PhotoImage:
         img = img.resize((max(1, int(w*scale)), max(1, int(h*scale))), Image.LANCZOS)
     return ImageTk.PhotoImage(img)
 
-# ---------- Прогресс (сохраняем очки, и дополнительно stage/mood/last_login) ----------
+# Прогресс (сохраняем очки, и дополнительно stage/mood/last_login)
 def load_progress():
     defaults = {"total": 0.0, "stage": "baby", "mood": "sad", "last_session": None, "last_login": time.time()}
     try:
@@ -85,15 +85,15 @@ def save_progress(p):
     p["last_login"] = time.time()
     PROGRESS.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
 
-# ---------- Приложение ----------
+# Приложение
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("🐾 Focus Pet — Tkinter")
+        root.title("🐾 Focus Pet")
         root.geometry("1280x800")
         root.minsize(960, 640)
 
-        # ===== Состояния (таймер и очки — как в вашем appp_tk.py) =====
+        # Состояния (таймер и очки — как в вашем appp_tk.py)
         self.progress = load_progress()  # total/stage/mood/last_session
         self.state = "idle"              # idle|focusing|break
         self.end_ts = None
@@ -111,12 +111,12 @@ class App:
         self._rest_last_ms = 0
         self.REST_FPS_MS = 350
 
-        # ===== UI: два экрана =====
+        # UI: два экрана
         self.container = ttk.Frame(root)
         self.container.pack(fill="both", expand=True)
         self.container.bind("<Configure>", self._on_resize)
 
-        # --- Стартовый экран ---
+        # Стартовый экран
         self.start_frame = ttk.Frame(self.container)
         self.start_bg_label = ttk.Label(self.start_frame)  # фон-картинка
         self.start_bg_label.place(x=0, y=0, relwidth=1, relheight=1)
@@ -129,7 +129,7 @@ class App:
         self.title_lbl.place(relx=0.5, rely=0.38, anchor="center")
         self.start_btn.place(relx=0.5, rely=0.60, anchor="center", width=240, height=64)
 
-        # --- Основной экран ---
+        # Основной экран
         self.main_frame = ttk.Frame(self.container)
 
         # Сцена (фон+кот — готовая картинка)
@@ -196,7 +196,7 @@ class App:
         except Exception:
             pass
 
-    # ---------- Экран: старт ----------
+    # Экран: старт
     def show_start(self):
         self.main_frame.place_forget()
         self.start_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -213,7 +213,7 @@ class App:
         self.state = "idle"
         self._set_status("Нажмите START, чтобы начать первую сессию")
 
-    # ---------- Таймер/кнопки (логика из вашего appp_tk.py) ----------
+    # Таймер/кнопки (логика из вашего appp_tk.py)
     def on_start(self):
         if self.state not in ("idle", "break"):  # запрещаем повторный старт в середине фокуса
             return
@@ -264,11 +264,11 @@ class App:
             self.current_cycle = 0
             self.progress["mood"] = "sad"
             save_progress(self.progress)
-            self._set_status("Сессия прервана — очки не начислены. Кот грустит 😿", color="#e53935")
+            self._set_status("Сессия прервана — очки не начислены. Кот грустит", color="#e53935")
             self.timer_lbl.configure(text="00:00")
             self._render_scene()
 
-    # ---------- Главный тик (как у вас: remaining → события) ----------
+    # Главный тик (как у вас: remaining → события)
     def _tick(self):
         now = time.time()
 
@@ -285,7 +285,7 @@ class App:
 
             if remaining <= 0:
                 if self.state == "focusing":
-                    # ==== УСПЕШНО завершили фокус — НАЧИСЛЯЕМ очки (ваша логика) ====
+                    # УСПЕШНО завершили фокус — НАЧИСЛЯЕМ очки (ваша логика)
                     gained = self.focus_len * POINTS_PER_MIN
                     self.progress["total"] = float(self.progress["total"]) + float(gained)
                     self.progress["last_session"] = datetime.now().isoformat(timespec="seconds")
@@ -305,14 +305,14 @@ class App:
                         self.state = "break"
                         self.end_ts = time.time() + self.break_len * 60.0
                         self._set_status(
-                            f"🎉 Сессия {self.current_cycle} завершена (+{gained:.1f} очков). Перерыв {self.break_len:g} мин 🍵"
+                            f"Сессия {self.current_cycle} завершена (+{gained:.1f} очков). Перерыв {self.break_len:g} мин"
                         )
                     else:
-                        # ==== ПОЛНАЯ СЕССИЯ завершена ====
+                        # ПОЛНАЯ СЕССИЯ завершена
                         self.state = "idle"
                         self.end_ts = None
                         self._set_status(
-                            f"🎉 Все {self.total_cycles} сессий завершены. +{gained:.1f} очков за последнюю."
+                            f"Все {self.total_cycles} сессий завершены. +{gained:.1f} очков за последнюю."
                         )
                         self.timer_lbl.configure(text="00:00")
                         # Рост: baby→teen→adult, если ещё не adult
@@ -327,7 +327,7 @@ class App:
                     self.current_cycle += 1
                     self.state = "focusing"
                     self.end_ts = time.time() + self.focus_len * 60.0
-                    self._set_status(f"Сессия {self.current_cycle} из {self.total_cycles} началась. Поехали! 💪")
+                    self._set_status(f"Сессия {self.current_cycle} из {self.total_cycles} началась. Поехали! ")
                     # на перерыве у adult крутилась анимация — при входе в учебу вернём neutral
                     if self.progress["mood"] == "happy":
                         # можно оставить happy от предыдущего завершения; но на учебе логичнее neutral
@@ -341,7 +341,7 @@ class App:
 
         self.root.after(200, self._tick)
 
-    # ---------- Стадии/настроения ----------
+    # Стадии/настроения
     def _is_adult(self) -> bool:
         return self.progress.get("stage") == "adult"
 
@@ -354,7 +354,7 @@ class App:
         # adult остаётся adult
         save_progress(self.progress)
 
-    # ---------- Рендер сцены ----------
+    # Рендер сцены
     def _current_scene_path(self) -> Path:
         stage = self.progress.get("stage", "baby")
         mood  = self.progress.get("mood", "sad")
@@ -386,7 +386,7 @@ class App:
         else:
             self.start_bg_label.configure(text="")
 
-    # ---------- Вспомогательное ----------
+    # Вспомогательное
     def _set_status(self, msg, color="#2e7d32"):
         self.status_lbl.configure(text=msg, foreground=color)
 
@@ -400,7 +400,7 @@ class App:
         else:
             self._render_scene()
 
-# ---------- Запуск ----------
+# Запуск
 if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
