@@ -25,14 +25,14 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 
-# ----- Kaustade ja failide teed -----
+# Kaustade ja failide teed
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"
 DATA.mkdir(exist_ok=True)
 ASSETS = ROOT / "assets"
 PROGRESS_PATH = DATA / "progress.json"
 
-# ----- Taimeri valikud -----
+# Taimeri valikud 
 FOCUS_CHOICES = [0.1, 5, 10, 15, 20, 25, 30]  # minutites (0.1 testimiseks)
 SESSIONS_CHOICES = [1, 2, 3]  # mitu fookussessiooni järjest
 BREAK_CHOICES = [0.1, 3, 5, 7, 10]  # paus minutites
