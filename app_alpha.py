@@ -1,4 +1,4 @@
-# focus_pet_app.py
+# app_alpha.py
 """
 Projekt: Focus Pet – fookustaimer koos kasvava kassiga
 Autorid: Maria Elisa Vassiljeva, Viktorija Korjagina
