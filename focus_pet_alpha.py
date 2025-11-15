@@ -5,7 +5,7 @@ Käivitamisjuhend:
     1. Laadi alla projekti ZIP fail ja paki see lahti
     2. Veendu, et Python 3.10+ on installitud.
     3. Paigalda vajalikud teegid: pip install pillow
-    4. Käivita programm käsurealt: python app_alpha.py
+    4. Käivita programm käsurealt: python focus_pet_alpha.py
 
 """
 
