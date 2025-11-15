@@ -1,19 +1,13 @@
-# app_alpha.py
 """
 Projekt: Focus Pet – fookustaimer koos kasvava kassiga
 Autorid: Maria Elisa Vassiljeva, Viktorija Korjagina
-Eeskujud/Allikad:
-  - PEP 8 (koodistiil): https://peps.python.org/pep-0008/
-  - PEP 257 (docstring’id): https://peps.python.org/pep-0257/
-  - Tkinter, Pillow dokumentatsioonid
+Käivitamisjuhend:
+    1. Laadi alla projekti ZIP fail ja paki see lahti
+    2. Veendu, et Python 3.10+ on installitud.
+    3. Paigalda vajalikud teegid: pip install pillow
+    4. Käivita programm käsurealt: python app_alpha.py
 
-Kirjeldus:
-  Lihtne Tkinteri rakendus, mis võimaldab teha fookussessioone (Pomodoro-stiilis),
-  teenida punkte ning “kasvatada” kassi. Pildid on ette renderdatud stseenid
-  (taust+loom), mida valitakse taseme ja tuju järgi.
 """
-
-from __future__ import annotations
 
 import json
 import time
