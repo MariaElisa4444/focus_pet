@@ -18,6 +18,7 @@ from typing import Dict, Optional
 import tkinter as tk
 from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
+from pygame import mixer
 
 from menu_panel import SideMenu  # meie eraldi failis olev külgmenüü
 
@@ -156,6 +157,9 @@ class App:
         root.rowconfigure(0, weight=1)
         root.columnconfigure(0, weight=1)
 
+        # Kas muusika hetkel mängimas või mitte
+        self.music_playing = False
+
         # Pildid hoian muutujas, et Python neid prügikasti ei viskaks
         self._img_cache: Optional[ImageTk.PhotoImage] = None
         self._splash_img_cache: Optional[ImageTk.PhotoImage] = None
@@ -178,12 +182,41 @@ class App:
         self.main_frame.grid(row=0, column=0, sticky="nsew")
         self.main_frame.grid_remove()                          # alguses peidame põhi ekraani
 
+        # Seadistame pygame.mixer ja laeme taustamuusika
+        self._init_music()
+
         # Loome mõlema ekraani kasutajaliidese
         self._build_splash_ui()
         self._build_main_ui()
 
         # Käivitame taimeri tsükli
         self.root.after(200, self._tick)
+    
+    # Muusika
+
+    def _init_music(self) -> None:
+        """
+        Seadistab pygame.mixer'i ja proovib laadida taustamuusika faili.
+        Kui faili ei leita või midagi läheb valesti, ei viska viga, ainult prindib hoiatuse.
+        """
+        try:
+            # Käivitame audio süsteemi (teeme seda ainult korra)
+            mixer.init()
+        except Exception as e:
+            print("Music init failed:", e)
+            return
+        
+        music_path = ASSETS / "music" / "focus_music.mp3"
+
+        if not music_path.exists():
+            print(f"Music file not found: {music_path}")
+            return
+        
+        try:
+            mixer.music.load(str(music_path))
+            mixer.music.set_volume(0.3)  # helitugevus 30%
+        except Exception as e:
+            print("Music load failed:", e)
 
     # Stardi ekraan (splash)
 
@@ -310,13 +343,30 @@ class App:
         # Nupud ise teeme tk.Button-iga, et värvid täpselt töötaks
         button_font = ("Bernoru SemiCondensed", 18, "bold")
 
+        self.music_btn = tk.Button(
+            btns,
+            text="Music: OFF",
+            font=button_font,
+            bg="#D1CCC1",           # tavaline taust
+            fg="black",
+            activebackground="#B7B3A9",             # vajutamisel
+            activeforeground="black",
+            bd=0,
+            relief="flat",
+            padx=20,
+            pady=10,
+            cursor="hand2",
+            command=self.toggle_music,
+        )
+        
+        
         self.start_btn = tk.Button(
             btns,
             text="START",
             font=button_font,
-            bg="#D1CCC1",                # tavaline taust
+            bg="#D1CCC1",
             fg="black",
-            activebackground="#B7B3A9",  # vajutamisel
+            activebackground="#B7B3A9",
             activeforeground="black",
             bd=0,
             relief="flat",
@@ -359,9 +409,39 @@ class App:
         )
 
         # Paigutame nupud ühte ritta
-        self.start_btn.grid(row=0, column=0, padx=10)
-        self.pause_btn.grid(row=0, column=1, padx=10)
-        self.stop_btn.grid(row=0, column=2, padx=10)
+        self.music_btn.grid(row=0, column=0, padx=10)
+        self.start_btn.grid(row=0, column=1, padx=10)
+        self.pause_btn.grid(row=0, column=2, padx=10)
+        self.stop_btn.grid(row=0, column=3, padx=10)
+    
+    # Muusika sisse ja välja lülitamine
+    def toggle_music(self) -> None:
+        """
+        Lülitab taustamuusika sisse või välja.
+        - Kui muusika mängib, paneme pausile.
+        - Kui on pausil (või pole veel mängima pandud), hakkame mängima tsüklis.
+        """
+        if not mixer.get_init():
+            # kui mingil p]hjusel mixer ei saanud alguses käima, ei tee midagi
+            print("Music system not initialized.")
+            return
+        
+        if self.music_playing:
+            # Muusika oli sees -> paneme pausile
+            mixer.music.pause()
+            self.music_playing = False
+            # Uuendame nuppu teksti
+            self.music_btn.configure(text="Music: OFF")
+        else:
+            # Muusika oli pausil -> alustame mängimist tsüklis
+            try:
+                mixer.music.play(-1)  # -1 tähendab lõputut tsüklit
+                self.music_playing = True
+                # Uuendame nuppu teksti
+                self.music_btn.configure(text="Music: ON")
+            except Exception as e:
+                print("Failed to play music:", e)
+
 
     # Nuppude funktsioonid
     def on_start(self) -> None:
