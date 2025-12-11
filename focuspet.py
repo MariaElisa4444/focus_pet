@@ -173,6 +173,7 @@ class App:
         self.progress = load_progress()
         self.state = "idle"  # idle | focusing | break
         self.end_ts: Optional[float] = None
+        self.paused_left: float | None = None  # mitu sekundit on pausil alles
         self.focus_len_min = 25.0
         self.break_len_min = 5.0
         self.total_cycles = 3
@@ -512,24 +513,62 @@ class App:
             self._render_scene()
 
     def on_pause(self) -> None:
-        """Peatab taimeri (ajutiselt)."""
+        """Lülitab taimeri pausile või jätkab (PAUSE/RESUME)."""
+        # 1) Aktiivse sessiooni pausile panemine
         if self.state in ("focusing", "break") and self.end_ts:
             left = max(0.0, self.end_ts - time.time())
-            self.state = "idle"
+            self.paused_left = left
+
+            # jätame meelde, mis faasis pausile läksime
+            if self.state == "focusing":
+                self.state = "paused_focusing"
+            else:
+                self.state = "paused_break"
+
             self.end_ts = None
             self.timer_lbl.configure(text=format_mmss(left))
+
             self.progress["mood"] = "sad"
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
+
             self.status_lbl.configure(
-                text="Paused. Press START to resume.", foreground="#b26a00"
+                text="Paused.", foreground="#b26a00"
             )
+
+            # nupp PAUSE -> RESUME
+            self.pause_btn.configure(text="RESUME")
+
+        # 2) Pausilt jätkamine
+        elif self.state in ("paused_focusing", "paused_break") and self.paused_left is not None:
+            if self.state == "paused_focusing":
+                self.state = "focusing"
+                mood = "neutral"
+            else:
+                self.state = "break"
+                mood = "neutral"
+
+            self.end_ts = time.time() + self.paused_left
+            self.paused_left = None
+
+            self.progress["mood"] = mood
+            save_progress(self.progress)  # type: ignore[arg-type]
+            self._render_scene()
+
+            self.status_lbl.configure(
+                text="Resumed.", foreground="#2e7d32"
+            )
+
+            # nupp RESUME -> PAUSE
+            self.pause_btn.configure(text="PAUSE")
+
 
     def on_stop(self) -> None:
         """Tühistab sessiooni täielikult."""
-        if self.state in ("focusing", "break"):
+        if self.state in ("focusing", "break", "paused_focusing", "paused_break"):
             self.state = "idle"
             self.end_ts = None
+            self.paused_left = None
             self.current_cycle = 0
             self.timer_lbl.configure(text="00:00")
             self.progress["mood"] = "sad"
@@ -538,6 +577,8 @@ class App:
             self.status_lbl.configure(
                 text="Session cancelled - no points added.", foreground="#e53935"
             )
+            # nupp tagasi PAUSE peale
+            self.pause_btn.configure(text="PAUSE")
 
     # Taimeri tsükkel
     def _tick(self) -> None:
