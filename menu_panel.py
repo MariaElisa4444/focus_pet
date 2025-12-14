@@ -28,14 +28,13 @@ class SideMenu:
         break_choices: List[float],                               # Pausi valikud
         initial_points: float,                                    # Esialgne punktide arv
         on_update_scene: Optional[Callable[[], None]] = None,     # Funktsioon põhipildile värskendamiseks
-        on_music_change: Optional[Callable[[bool], None]] = None  # Callback muusika ON/OFF jaoks
+        on_music_toggle: Optional[Callable[[str], None]] = None,  # Funktsioon muusika sisselülitamiseks/väljalülitamiseks
     ) -> None:
 
         # Salvestame parent ja update funktsiooni
         self.parent = parent
-        self.on_update_scene = on_update_scene                    # kutsume välja pärast menüü avamist/sulgemist
-        # Salvestame ka muusika callbacki
-        self.on_music_change = on_music_change
+        self.on_update_scene = on_update_scene              # kutsume välja pärast menüü avamist/sulgemist
+        self.on_music_toggle = on_music_toggle              # kutsume välja, kui kasutaja muudab muusika seadet
 
         # Kui paneel on kinni, siis tema laius on väga väike
         self.closed_width = 40
@@ -178,19 +177,15 @@ class SideMenu:
         )
         self.status_label.grid(row=7, column=0, sticky="w")
 
-        # ----- MUUSIKA BLOKK -----
-        # Siin teeme samas stiilis väikse "Music" teksti ja all valiku ON/OFF
+        # MUUSIKA BLOKK
         ttk.Label(
             self.inner,
             text="Music",
             style="Menu.TLabel",
         ).grid(row=8, column=0, sticky="w", pady=(12, 2))
 
-        # StringVar hoiab praegust väärtust ("on" või "off")
-        # vaikimisi paneme "off", et muusika ei hakkaks ise mängima
         self.music_var = tk.StringVar(value="off")
 
-        # Väike combobox, mis näeb välja sarnane teistele valikutele
         self.music_cb = ttk.Combobox(
             self.inner,
             width=6,
@@ -200,23 +195,8 @@ class SideMenu:
             style="Menu.TCombobox",
         )
         self.music_cb.grid(row=9, column=0, sticky="w", pady=(0, 10))
-        self.music_cb.set("off")  # igaks juhuks paneme veel korra
-
-        # Kui kasutaja muudab ON/OFF, siis käivitame sisemise funktsiooni, mis teavitab põhiprogrammi (kui callback on antud)
+        self.music_cb.set("off")
         self.music_cb.bind("<<ComboboxSelected>>", self._handle_music_change)
-
-    # ----- MUUSIKA VALIKU KÄITLUS -----
-    def _handle_music_change(self, _event=None) -> None:
-        """
-        See funktsioon käivitub siis, kui kasutaja valib comboboxist "on" või "off". Siin anname
-        info edasi peaprogrammile, kui on_music_change callback on olemas.
-        """
-        value = self.music_var.get().lower()   # "on" või "off"
-        is_on = value == "on"                  # True kui "on", muidu False
-
-        # Kui peaprogramm andis meile funktsiooni, kutsume seda
-        if self.on_music_change is not None:
-            self.on_music_change(is_on)
 
     # ----- PANEELI AVAMINE / SULGEMINE -----
 
@@ -246,3 +226,16 @@ class SideMenu:
         # Kui põhiprogramm tahab midagi ümber joonistada (nt pilti värskendada), siis kutsume vastava funktsiooni välja
         if self.on_update_scene is not None:
             self.on_update_scene()
+
+    # MUUSIKA MUUTUMINE
+    def _handle_music_change(self, _event=None) -> None:
+        """
+        Käivitub siis, kui kasutaja muudab menüüs Music valikut (on / off).
+
+        See funktsioon:
+        - loeb comboboxist kasutaja valiku ("on" või "off")
+        - edastab selle info põhiprogrammile (focuspet.py), kui on_music_toggle callback on määratud
+        """ 
+        value = self.music_var.get().lower()  # "on" või "off"
+        if self.on_music_toggle is not None:
+            self.on_music_toggle(value)
