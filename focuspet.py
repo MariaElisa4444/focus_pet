@@ -20,12 +20,16 @@ from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 
 from menu_panel import SideMenu  # meie eraldi failis olev külgmenüü
+import ui_styles  # kujundus (värvid, fondid, nupu stiilid) on eraldi failis
+
 # Muusika jaoks kasutame pygame.mixer teeki
 # (kui pygame pole installitud, muusika lihtsalt ei tööta, aga programm töötab edasi)
 try:
     import pygame  # type: ignore
 except Exception:
     pygame = None  # type: ignore
+
+from music_player import MusicPlayer  # muusika loogika on eraldi failis
 
 # Kaustade ja failide teed
 ROOT = Path(__file__).parent
@@ -34,11 +38,11 @@ DATA.mkdir(exist_ok=True)
 ASSETS = ROOT / "assets"
 PROGRESS_PATH = DATA / "progress.json"
 
-# Taimeri valikud 
-FOCUS_CHOICES = [0.1, 5, 10, 15, 20, 25, 30]  # minutites (0.1 testimiseks)
-SESSIONS_CHOICES = [1, 2, 3]                  # mitu fookussessiooni järjest
-BREAK_CHOICES = [0.1, 3, 5, 7, 10]            # paus minutites
-POINTS_PER_MINUTE = 1                         # mitu punkti iga minuti eest
+# Taimeri valikud
+FOCUS_CHOICES = [0.1, 5, 10, 15, 20, 25, 30]               # minutites (0.1 testimiseks)
+SESSIONS_CHOICES = [1, 2, 3]                               # mitu fookussessiooni järjest
+BREAK_CHOICES = [0.1, 3, 5, 7, 10]                         # paus minutites
+POINTS_PER_MINUTE = 1                                      # mitu punkti iga minuti eest
 
 # Stardi ekraani seaded
 START_SCREEN_FILE = "focuspet_start.png"                   # pilt assets kaustas
@@ -141,7 +145,6 @@ def load_progress() -> Dict[str, object]:
     save_progress(progress)
     return progress
 
-
 def save_progress(progress: Dict[str, object]) -> None:
     """Salvestab kassi seisu progress.json-faili."""
     PROGRESS_PATH.write_text(
@@ -179,10 +182,7 @@ class App:
         self.current_cycle = 0
 
         # Muusika
-        self.music_enabled = False
-        self._music_available = False
-        self.music_tracks: list[Path] = []
-        self.current_track_index = -1 
+        self.music = MusicPlayer(assets_path=ASSETS, pygame_module=pygame)
 
         # Kaks erinevat ekraani: stardi ekraan ja põhi ekraan
         self.splash_frame = tk.Frame(root, bg="#fbe7b3")
@@ -190,19 +190,14 @@ class App:
 
         self.main_frame = tk.Frame(root, bg="#f5f5f5")
         self.main_frame.grid(row=0, column=0, sticky="nsew")
-        self.main_frame.grid_remove()                          # alguses peidame põhi ekraani
+        self.main_frame.grid_remove()  # alguses peidame põhi ekraani
 
         # Loome mõlema ekraani kasutajaliidese
         self._build_splash_ui()
         self._build_main_ui()
 
-        # Initsialiseerime muusika (pygame + trackid)
-        self._init_music()
-
         # Käivitame taimeri tsükli
         self.root.after(200, self._tick)
-
-
 
     # Stardi ekraan (splash)
 
@@ -218,21 +213,16 @@ class App:
         # Kui aken muudab suurust, joonistame pildi uuesti
         self.splash_frame.bind("<Configure>", lambda _e: self._render_splash())
 
-        #  START nupp
+        # START nupp
+        # Siin on ainult loogika (text + command), stiili paneme ui_styles fail
         self.splash_start_btn = tk.Button(
             self.splash_frame,
-            text="START",                               # nupu tekst
-            font=START_BUTTON_FONT,                     # font ülevalt konstandist
-            fg=START_BUTTON_TEXT_COLOR,                 # teksti värv (must)
-            bg="#D1CCC1",                             # nupu taust
-            activeforeground=START_BUTTON_TEXT_COLOR,
-            activebackground="#B7B3A9",               # natuke tumedam vajutades
-            bd=0,
-            highlightthickness=0,
-            relief="flat",
-            cursor="hand2",
+            text="START",  # nupu tekst
             command=self._on_splash_start_clicked,
         )
+
+        # nupu tekst / font / värv jne (must tekst)
+        ui_styles.style_splash_start_button(self.splash_start_btn)
 
         self.splash_start_btn.place(
             relx=0.5,
@@ -270,7 +260,7 @@ class App:
         self.splash_frame.grid_remove()  # peidame stardi ekraani
         self.main_frame.grid()           # toome välja põhivaate
 
-    #  Põhi ekraan 
+    #  Põhi ekraan
 
     def _build_main_ui(self) -> None:
         """Loob põhi ekraani: kassi pilt, taimer, nupud ja külgmenüü."""
@@ -306,24 +296,12 @@ class App:
 
         # Taimer paremas ülanurgas (pildi peal)
         # Kasutame tk.Label, et saaksime taustavärvi panna
-        self.timer_lbl = tk.Label(
-            mf,
-            text="00:00",
-            font=("Bernoru SemiCondensed", 50, "bold"),
-            bg="#FFF3CD",
-            fg="#000000",
-            bd=0,
-            padx=14,
-            pady=4,
-        )
+        self.timer_lbl = ui_styles.make_timer_label(mf)
         self.timer_lbl.place(relx=0.97, rely=0.05, anchor="ne")
 
         # START / PAUSE / STOP nupud paremas alumises nurgas
         # Kasutame tavalist tk.Frame, et taust ei oleks hall
-        btns = tk.Frame(
-            mf,
-            bg="#643F2C",
-        )
+        btns = ui_styles.make_bottom_bar(mf)
         # paremas alumises nurgas
         btns.place(relx=0.98, rely=0.98, anchor="se")
 
@@ -334,142 +312,48 @@ class App:
             btns,
             text="START",
             font=button_font,
-            bg="#D1CCC1",                # tavaline taust
             fg="black",
-            activebackground="#B7B3A9",  # vajutamisel
-            activeforeground="black",
             bd=0,
             relief="flat",
-            padx=20,
-            pady=10,
-            cursor="hand2",
             command=self.on_start,
         )
+        ui_styles.style_control_button(self.start_btn)
 
         self.pause_btn = tk.Button(
             btns,
             text="PAUSE",
             font=button_font,
-            bg="#D1CCC1",
             fg="black",
-            activebackground="#B7B3A9",
-            activeforeground="black",
             bd=0,
             relief="flat",
-            padx=20,
-            pady=10,
-            cursor="hand2",
             command=self.on_pause,
         )
+        ui_styles.style_control_button(self.pause_btn)
 
         self.stop_btn = tk.Button(
             btns,
             text="STOP",
             font=button_font,
-            bg="#D1CCC1",
             fg="black",
-            activebackground="#B7B3A9",
-            activeforeground="black",
             bd=0,
             relief="flat",
-            padx=20,
-            pady=10,
-            cursor="hand2",
             command=self.on_stop,
         )
+        ui_styles.style_control_button(self.stop_btn)
 
         # Paigutame nupud ühte ritta
         self.start_btn.grid(row=0, column=0, padx=10)
         self.pause_btn.grid(row=0, column=1, padx=10)
         self.stop_btn.grid(row=0, column=2, padx=10)
 
-    # Muusika funktsioonid
-    def _init_music(self) -> None:
-        if pygame is None:
-            self._music_available = False
-            return
-
-        music_folder = ASSETS / "music"
-        tracks = []
-        for i in range(1, 7):
-            p = music_folder / f"track{i}.mp3"
-            if p.exists():
-                tracks.append(p)
-
-        if not tracks:
-            self._music_available = False
-            return
-
-        self.music_tracks = tracks
-        self.current_track_index = -1
-
-        try:
-            pygame.mixer.init()
-            pygame.mixer.music.set_volume(0.4)
-            self._music_available = True
-        except Exception:
-            self._music_available = False
-
-
+    # Muusika toggle tuleb SideMenu-st
     def _on_music_toggle(self, value: str) -> None:
-        value = (value or "").lower()
-        self.music_enabled = (value == "on")
+        # MusicPlayer API järgi on see handle_toggle()
+        self.music.handle_toggle(value)
 
-        # OFF -> stopp
-        if not self.music_enabled:
-            self._stop_music()
-            return
-
-        # ON + focusing -> alusta kohe
-        if self.state == "focusing":
-            if pygame is not None and not pygame.mixer.music.get_busy():
-                self._play_next_track()
-
-
-    def _play_next_track(self) -> None:
-        if not self._music_available or not self.music_enabled:
-            return
-        if pygame is None or not self.music_tracks:
-            return
-
-        self.current_track_index = (self.current_track_index + 1) % len(self.music_tracks)
-        track_path = self.music_tracks[self.current_track_index]
-
-        try:
-            pygame.mixer.music.load(str(track_path))
-            pygame.mixer.music.play()
-        except Exception:
-            try:
-                pygame.mixer.music.stop()
-            except Exception:
-                pass
-
-
-    def _stop_music(self) -> None:
-        if pygame is None:
-            return
-        try:
-            pygame.mixer.music.stop()
-        except Exception:
-            pass
-
-
-    def _pause_music(self) -> None:
-        if pygame is None:
-            return
-        try:
-            pygame.mixer.music.pause()
-        except Exception:
-            pass
-
-
-    def _unpause_music(self) -> None:
-        if pygame is None:
-            return
-        try:
-            pygame.mixer.music.unpause()
-        except Exception:
-            pass
+        # kui keerati ON ja me oleme focusingus, hakkame kohe mängima
+        if (value or "").strip().lower() == "on" and self.state == "focusing":
+            self.music.start_for_focusing()
 
     # Nuppude funktsioonid
     def on_start(self) -> None:
@@ -498,11 +382,9 @@ class App:
         self.state = "focusing"
         self.end_ts = time.time() + self.focus_len_min * 60
 
-        # Muusika ainult focusing ajal (kui Music: on)
-        if self._music_available and self.music_enabled and pygame is not None:
-            if not pygame.mixer.music.get_busy():
-                self._play_next_track()
-            
+        # Muusika ainult focusing ajal
+        self.music.start_for_focusing()
+
         self.status_lbl.configure(
             text=f"Session {self.current_cycle}/{self.total_cycles} started!",
             foreground="#2e7d32",
@@ -521,9 +403,8 @@ class App:
             left = max(0.0, self.end_ts - time.time())
             self.paused_left = left
 
-            # Pausi ajal muusika ei mängi (ainult kui Music on)
-            if self.music_enabled:
-                self._pause_music()
+            # Pausil muusika pausile
+            self.music.pause()
 
             # jätame meelde, mis faasis pausile läksime
             if self.state == "focusing":
@@ -538,9 +419,7 @@ class App:
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
 
-            self.status_lbl.configure(
-                text="Paused.", foreground="#b26a00"
-            )
+            self.status_lbl.configure(text="Paused.", foreground="#b26a00")
 
             # nupp PAUSE -> RESUME
             self.pause_btn.configure(text="RESUME")
@@ -553,14 +432,13 @@ class App:
             else:
                 self.state = "break"
                 mood = "neutral"
-            
-            # Jätkame muusikat ainult focusingusse naastes ja kui Music: on
-            if self.state == "focusing" and self._music_available and self.music_enabled:
-                self._unpause_music()
-                if pygame is not None and not pygame.mixer.music.get_busy():
-                    self._play_next_track()
+
+            # kui tagasi focusingusse, siis muusika edasi
+            if self.state == "focusing":
+                self.music.unpause()
+                self.music.start_for_focusing()
             else:
-                self._stop_music()
+                self.music.stop()
 
             self.end_ts = time.time() + self.paused_left
             self.paused_left = None
@@ -569,19 +447,16 @@ class App:
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
 
-            self.status_lbl.configure(
-                text="Resumed.", foreground="#2e7d32"
-            )
+            self.status_lbl.configure(text="Resumed.", foreground="#2e7d32")
 
             # nupp RESUME -> PAUSE
             self.pause_btn.configure(text="PAUSE")
-
 
     def on_stop(self) -> None:
         """Tühistab sessiooni täielikult."""
         if self.state in ("focusing", "break", "paused_focusing", "paused_break"):
             self.state = "idle"
-            self._stop_music()
+            self.music.stop()
             self.end_ts = None
             self.paused_left = None
             self.current_cycle = 0
@@ -609,13 +484,9 @@ class App:
                 if self.state == "focusing":
                     gained = self.focus_len_min * POINTS_PER_MINUTE
                     self.progress["total"] = float(self.progress["total"]) + gained
-                    self.progress["last_session"] = datetime.now().isoformat(
-                        timespec="seconds"
-                    )
+                    self.progress["last_session"] = datetime.now().isoformat(timespec="seconds")
                     save_progress(self.progress)  # type: ignore[arg-type]
-                    self.points_lbl.configure(
-                        text=f"Points: {float(self.progress['total']):.1f}"
-                    )
+                    self.points_lbl.configure(text=f"Points: {float(self.progress['total']):.1f}")
                     self._grow_stage_if_needed()
 
                     # Kass on rõõmus
@@ -625,7 +496,7 @@ class App:
 
                     if self.current_cycle < self.total_cycles:
                         # läheb pausile
-                        self._stop_music()
+                        self.music.stop()
                         self.state = "break"
                         self.end_ts = time.time() + self.break_len_min * 60
                         self.status_lbl.configure(
@@ -637,7 +508,7 @@ class App:
                         )
                     else:
                         # kõik sessioonid tehtud
-                        self._stop_music()
+                        self.music.stop()
                         self.state = "idle"
                         self.end_ts = None
                         self.timer_lbl.configure(text="00:00")
@@ -656,10 +527,8 @@ class App:
                     self.state = "focusing"
                     self.end_ts = time.time() + self.focus_len_min * 60
 
-                    # Käivitame muusika, kui uus focusing algab (kui Music: on)
-                    if self._music_available and self.music_enabled and pygame is not None:
-                        if not pygame.mixer.music.get_busy():
-                            self._play_next_track()
+                    # focusing algab -> muusika
+                    self.music.start_for_focusing()
 
                     self.status_lbl.configure(
                         text=f"Session {self.current_cycle}/{self.total_cycles} started!",
@@ -669,10 +538,8 @@ class App:
                     save_progress(self.progress)  # type: ignore[arg-type]
                     self._render_scene()
 
-        # LOOP: focusing ajal kui lugu lõppes, mängi järgmine
-        if self.state == "focusing" and self._music_available and self.music_enabled:
-            if pygame is not None and not pygame.mixer.music.get_busy():
-                self._play_next_track()
+        # tick() tahab is_focusing parameetrit
+        self.music.tick(is_focusing=(self.state == "focusing"))
 
         # korduskutse iga 0.2 sekundi järel
         self.root.after(200, self._tick)
