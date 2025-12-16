@@ -7,6 +7,7 @@
 
 from __future__ import annotations # võimaldab kirjutada tüübimärkusi vabamalt, isegi kui vastav klass on failis allpool
 
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -50,11 +51,25 @@ class MusicPlayer:
         # tracki proovime otsida (track1..trackN)
         self.max_tracks = max_tracks
 
+        # SFX (eraldi sound, ei sega taustmuusikat)
+        self.sfx_folder: Path = self.assets_path / "sfx"
+        self.sfx_paths = {
+            "button": self.sfx_folder / "button-press.mp3",
+            "timer": self.sfx_folder / "timer-sound.mp3",
+            "meow": self.sfx_folder / "meow.mp3",
+        }
+        self.sfx_sounds: dict[str, object] = {}  # name -> pygame.mixer.Sound
+        self.sfx_volume: float = 0.7
+
+        # cooldown
+        self._last_sfx_ts: dict[str, float] = {}
+        self._sfx_cooldown: float = 0.12
+
         # käivitame initsi kohe ära
         self._init()
 
     def _init(self) -> None:
-        """Proovib pygame.mixer init + leiab trackid."""
+        """Proovib pygame.mixer init + leiab trackid + laeb SFX."""
         if self.pygame is None:
             self.available = False
             return
@@ -68,19 +83,25 @@ class MusicPlayer:
             if p.exists():
                 found.append(p)
 
-        if not found:
-            self.available = False
-            return
-
         self.tracks = found
         self.current_index = -1
 
         try:
             self.pygame.mixer.init()
             self.pygame.mixer.music.set_volume(self.volume)
+
+            # laeme sfx helid
+            self.sfx_sounds = {}
+            for name, path in self.sfx_paths.items():
+                if path.exists():
+                    snd = self.pygame.mixer.Sound(str(path))
+                    snd.set_volume(self.sfx_volume)
+                    self.sfx_sounds[name] = snd
+
             self.available = True
         except Exception:
             self.available = False
+            self.sfx_sounds = {}
 
     # API mida põhiprogramm kasutab
 
@@ -104,6 +125,8 @@ class MusicPlayer:
         if not self.available or not self.enabled:
             return
         if self.pygame is None:
+            return
+        if not self.tracks:
             return
 
         try:
@@ -179,5 +202,31 @@ class MusicPlayer:
         try:
             if not self.pygame.mixer.music.get_busy():
                 self.play_next()
+        except Exception:
+            pass
+
+    def sfx(self, name: str, force: bool = True, cooldown: float | None = None) -> None:
+        """
+        Plays SFX by name: 'button', 'timer', 'meow'
+        force=True -> works even if Music is OFF.
+        """
+        if not self.available or self.pygame is None:
+            return
+        if (not force) and (not self.enabled):
+            return
+
+        snd = self.sfx_sounds.get(name)
+        if snd is None:
+            return
+
+        now = time.monotonic()
+        cd = self._sfx_cooldown if cooldown is None else float(cooldown)
+        last = self._last_sfx_ts.get(name, 0.0)
+        if now - last < cd:
+            return
+        self._last_sfx_ts[name] = now
+
+        try:
+            snd.play()
         except Exception:
             pass

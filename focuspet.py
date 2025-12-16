@@ -358,6 +358,8 @@ class App:
     # Nuppude funktsioonid
     def on_start(self) -> None:
         """Käivitab uue fookussessiooni."""
+        self.music.sfx("button") 
+
         if self.state not in ("idle", "break"):
             return
 
@@ -398,6 +400,8 @@ class App:
 
     def on_pause(self) -> None:
         """Lülitab taimeri pausile või jätkab (PAUSE/RESUME)."""
+        self.music.sfx("button")
+
         # 1) Aktiivse sessiooni pausile panemine
         if self.state in ("focusing", "break") and self.end_ts:
             left = max(0.0, self.end_ts - time.time())
@@ -454,6 +458,8 @@ class App:
 
     def on_stop(self) -> None:
         """Tühistab sessiooni täielikult."""
+        self.music.sfx("button")
+
         if self.state in ("focusing", "break", "paused_focusing", "paused_break"):
             self.state = "idle"
             self.music.stop()
@@ -490,9 +496,17 @@ class App:
                     self._grow_stage_if_needed()
 
                     # Kass on rõõmus
+                    old_mood = str(self.progress.get("mood", "sad"))
                     self.progress["mood"] = "happy"
                     save_progress(self.progress)  # type: ignore[arg-type]
                     self._render_scene()
+                    # timer lõppes -> sfx
+                    self.music.sfx("timer")
+
+                    # kui kass muutub rõõmsaks, mängime meow heli
+                    if old_mood != "happy":
+                        self.music.sfx("meow", cooldown=0.25)
+
 
                     if self.current_cycle < self.total_cycles:
                         # läheb pausile
@@ -529,6 +543,7 @@ class App:
 
                     # focusing algab -> muusika
                     self.music.start_for_focusing()
+                    self.music.sfx("timer")
 
                     self.status_lbl.configure(
                         text=f"Session {self.current_cycle}/{self.total_cycles} started!",
