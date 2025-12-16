@@ -184,6 +184,9 @@ class App:
         # Muusika
         self.music = MusicPlayer(assets_path=ASSETS, pygame_module=pygame)
 
+        # TOAST state (ajutine teade)
+        self._toast_after_id = None  # after() id, et saaks cancel'ida
+
         # Kaks erinevat ekraani: stardi ekraan ja põhi ekraan
         self.splash_frame = tk.Frame(root, bg="#fbe7b3")
         self.splash_frame.grid(row=0, column=0, sticky="nsew")
@@ -287,6 +290,21 @@ class App:
             on_music_toggle=self._on_music_toggle,
         )
 
+        # MENU toggle wrapper: kui menüü avaneb, peidame HUD-i
+        _original_toggle = self.menu.toggle  # jätame originaali alles
+
+        def _toggle_with_hud():
+            _original_toggle()  # avab/sulgub menüü
+
+            # SideMenu sees on is_open boolean
+            if self.menu.is_open:
+                self._hide_hud()
+            else:
+                self._show_hud()
+
+        self.menu.toggle = _toggle_with_hud
+        self.menu.toggle_btn.configure(command=_toggle_with_hud)
+
         # Seome comboboxid ja sildid nii, et ülejäänud kood ei muutuks
         self.focus_cb = self.menu.focus_cb
         self.sessions_cb = self.menu.sessions_cb
@@ -298,6 +316,25 @@ class App:
         # Kasutame tk.Label, et saaksime taustavärvi panna
         self.timer_lbl = ui_styles.make_timer_label(mf)
         self.timer_lbl.place(relx=0.97, rely=0.05, anchor="ne")
+
+        # HUD (püsiv info: focus/break/pause)
+        self.hud_lbl = tk.Label(mf, text="Ready to start")
+        ui_styles.style_hud_label(self.hud_lbl)
+        self.hud_lbl.place(relx=0.08, rely=0.08, anchor="nw")
+
+        # TOAST ajutine teade
+        self.toast_frame = tk.Frame(mf, bg="#D1CCC1", bd=2, relief="solid")
+        self.toast_lbl = tk.Label(
+            self.toast_frame,
+            text="",
+            font=("Bernoru SemiCondensed", 18, "bold"),
+            bg="#D1CCC1",
+            fg="#000000",
+            padx=18,
+            pady=10,
+        )
+        self.toast_lbl.pack()
+        self.toast_frame.place_forget() # alguses peidetud
 
         # START / PAUSE / STOP nupud paremas alumises nurgas
         # Kasutame tavalist tk.Frame, et taust ei oleks hall
@@ -355,6 +392,18 @@ class App:
         if (value or "").strip().lower() == "on" and self.state == "focusing":
             self.music.start_for_focusing()
 
+    def _hide_hud(self) -> None:
+        """Peidab HUD-i (kasutame, kui MENU on avatud)."""
+        try:
+            self.hud_lbl.place_forget()
+        except Exception:
+            pass
+
+    def _show_hud(self) -> None:
+        """Näitab HUD-i tagasi (kasutame, kui MENU on kinni)."""
+        self.hud_lbl.place(relx=0.08, rely=0.08, anchor="nw")
+        self._update_hud()
+
     # Nuppude funktsioonid
     def on_start(self) -> None:
         """Käivitab uue fookussessiooni."""
@@ -397,6 +446,11 @@ class App:
             self.progress["mood"] = "neutral"
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
+        
+        # Teaded ekraanil
+        self._update_hud()
+        self.show_toast(f"Session {self.current_cycle}/{self.total_cycles} started!", kind="info")
+
 
     def on_pause(self) -> None:
         """Lülitab taimeri pausile või jätkab (PAUSE/RESUME)."""
@@ -428,6 +482,9 @@ class App:
             # nupp PAUSE -> RESUME
             self.pause_btn.configure(text="RESUME")
 
+            self._update_hud()
+            self.show_toast("Paused", kind="info")
+
         # 2) Pausilt jätkamine
         elif self.state in ("paused_focusing", "paused_break") and self.paused_left is not None:
             if self.state == "paused_focusing":
@@ -456,6 +513,9 @@ class App:
             # nupp RESUME -> PAUSE
             self.pause_btn.configure(text="PAUSE")
 
+            self._update_hud()
+            self.show_toast("Resumed", kind="info")
+
     def on_stop(self) -> None:
         """Tühistab sessiooni täielikult."""
         self.music.sfx("button")
@@ -475,6 +535,64 @@ class App:
             )
             # nupp tagasi PAUSE peale
             self.pause_btn.configure(text="PAUSE")
+
+            self._update_hud()
+            self.show_toast("Session cancelled", kind="error")
+
+    def _update_hud(self) -> None:
+        """Uuendab püsivat HUD teksti (Session x/y + Focus/Break/Paused)."""
+        total = int(self.total_cycles) if self.total_cycles else 0
+        cur = int(self.current_cycle) if self.current_cycle else 0
+
+        if self.state == "focusing":
+            text = f"Session {cur}/{total}"
+            fg = "#000000"
+        elif self.state == "break":
+            text = "Break"
+            fg = "#261710"
+        elif self.state == "paused_focusing":
+            text = "Paused ⏸"
+            fg = "#261710"
+        elif self.state == "paused_break":
+            text = "Paused ⏸"
+            fg = "#261710"
+        else:
+            text = "Ready to start"
+            fg = "#261710"
+
+        self.hud_lbl.configure(text=text, fg=fg)
+
+    def show_toast(self, text: str, kind: str = "info", ms: int = 2500) -> None:
+        """
+        Näitab ajutist teadet peamisel ekraanil.
+        kind: info | error
+        ms: kui kaua (millisekundites)
+        """
+        colors = {
+            "info":    ("#D1CCC1", "#261710"),
+            "error":   ("#D1CCC1", "#6D0C0C"),
+        }
+        bg, fg = colors.get(kind, colors["info"])
+
+        self.toast_frame.configure(bg=bg)
+        self.toast_lbl.configure(text=text, bg=bg, fg=fg)
+
+        # place toast keskele, nuppude kohale
+        self.toast_frame.place(relx=0.5, rely=0.86, anchor="center")
+
+        # kui eelmine toast oli aktiivne, cancel'ime
+        if self._toast_after_id is not None:
+            try:
+                self.root.after_cancel(self._toast_after_id)
+            except Exception:
+                pass
+
+        self._toast_after_id = self.root.after(ms, self.hide_toast)
+
+    def hide_toast(self) -> None:
+        """Peidab toast teate."""
+        self.toast_frame.place_forget()
+        self._toast_after_id = None
 
     # Taimeri tsükkel
     def _tick(self) -> None:
@@ -513,6 +631,8 @@ class App:
                         self.music.stop()
                         self.state = "break"
                         self.end_ts = time.time() + self.break_len_min * 60
+                        self._update_hud()
+                        self.show_toast(f"Focus session finished! (+{gained:.1f}). Break {self.break_len_min:g} min", kind="info")
                         self.status_lbl.configure(
                             text=(
                                 f"Session {self.current_cycle} finished "
@@ -526,6 +646,8 @@ class App:
                         self.state = "idle"
                         self.end_ts = None
                         self.timer_lbl.configure(text="00:00")
+                        self._update_hud()
+                        self.show_toast(f"Good job! All sessions done :)", kind="info")
                         self.status_lbl.configure(
                             text=f"All {self.total_cycles} sessions done! (+{gained:.1f})",
                             foreground="#866a24",
@@ -545,6 +667,8 @@ class App:
                     self.music.start_for_focusing()
                     self.music.sfx("timer")
 
+                    self.show_toast("Break ended. Back to focus!", kind="info")
+
                     self.status_lbl.configure(
                         text=f"Session {self.current_cycle}/{self.total_cycles} started!",
                         foreground="#866a24",
@@ -555,6 +679,8 @@ class App:
 
         # tick() tahab is_focusing parameetrit
         self.music.tick(is_focusing=(self.state == "focusing"))
+
+        self._update_hud()
 
         # korduskutse iga 0.2 sekundi järel
         self.root.after(200, self._tick)

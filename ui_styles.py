@@ -50,6 +50,19 @@ def style_control_button(btn: tk.Button) -> None:
         cursor="hand2",
     )
 
+def style_hud_label(lbl: tk.Label) -> None:
+    """HUD stiilid. Näitab focus/break/pause olekut ekraani nurgas."""
+    lbl.configure(
+        bg=COLOR_BTN_BG,
+        fg=COLOR_BTN_TEXT,
+        font=FONT_BOTTOM_BTNS,
+        bd=0,
+        relief="solid",
+        padx=20,
+        pady=20,
+        highlightthickness=0,
+    )
+
 def make_bottom_bar(parent: tk.Widget) -> tk.Frame:
     """Loome alumise nupu riba (taustavärv ja raam)."""
     return tk.Frame(parent, bg=COLOR_BOTTOM_BAR_BG)
