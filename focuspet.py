@@ -548,7 +548,7 @@ class App:
         self.toast_lbl.configure(text=text, bg=bg, fg=fg)
 
         # toast teade asukoht
-        self.toast_frame.place(relx=0.525, rely=0.15, anchor="center")
+        self.toast_frame.place(relx=0.525, rely=0.08, anchor="center")
 
         # kui eelmine toast oli aktiivne, cancel'ime
         if self._toast_after_id is not None:
