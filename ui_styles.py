@@ -1,5 +1,5 @@
 # ui_styles.py
-# Siin failis on KÕIK värvid, fondid ja seaded ühes kohas
+# Siin failis on kõik värvid, fondid ja seaded ühes kohas
 
 import tkinter as tk
 
@@ -81,3 +81,54 @@ def make_timer_label(parent: tk.Widget) -> tk.Label:
         padx=14,
         pady=4,
     )
+
+def make_toast(parent: tk.Widget) -> tuple[tk.Frame, tk.Label]:
+    """
+    Loob toast-teate UI (frame + label).
+    Tagastab (toast_frame, toast_label).
+    """
+    toast_frame = tk.Frame(parent, bg="#D1CCC1", bd=1, relief="solid")
+    toast_lbl = tk.Label(
+        toast_frame,
+        text="",
+        font=("Bernoru SemiCondensed", 18, "bold"),
+        bg="#D1CCC1",
+        fg="#000000",
+        padx=18,
+        pady=10,
+    )
+    toast_lbl.pack()
+    toast_frame.place_forget()  # alguses peidetud
+    return toast_frame, toast_lbl
+
+def make_control_buttons(
+    parent: tk.Widget,
+    on_start,
+    on_pause,
+    on_stop,
+) -> tuple[tk.Button, tk.Button, tk.Button]:
+    """
+    Loob START/PAUSE/STOP nupud ühesuguse stiiliga ja paigutusega.
+    Tagastab (start_btn, pause_btn, stop_btn).
+    """
+    button_font = FONT_BOTTOM_BTNS
+
+    start_btn = tk.Button(parent, text="START", font=button_font, fg="black", bd=0, relief="flat", command=on_start)
+    pause_btn = tk.Button(parent, text="PAUSE", font=button_font, fg="black", bd=0, relief="flat", command=on_pause)
+    stop_btn  = tk.Button(parent, text="STOP",  font=button_font, fg="black", bd=0, relief="flat", command=on_stop)
+
+    style_control_button(start_btn)
+    style_control_button(pause_btn)
+    style_control_button(stop_btn)
+
+    start_btn.grid(row=0, column=0, padx=10)
+    pause_btn.grid(row=0, column=1, padx=10)
+    stop_btn.grid(row=0, column=2, padx=10)
+
+    return start_btn, pause_btn, stop_btn
+
+def make_hud_label(parent: tk.Widget) -> tk.Label:
+    """Loob HUD labeli ja rakendab stiilid."""
+    lbl = tk.Label(parent, text="")
+    style_hud_label(lbl)
+    return lbl

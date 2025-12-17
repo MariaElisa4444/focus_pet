@@ -4,20 +4,19 @@ Autorid: Maria Elisa Vassiljeva, Viktorija Korjagina
 Käivitamisjuhend:
     1. Laadi alla projekti ZIP fail ja paki see lahti
     2. Veendu, et Python 3.10+ on installitud
-    3. Ava terminal ja paigalda vajalikud teegid: pip install pillow
+    3. Ava terminal ja paigalda vajalikud teegid: python -m pip install pillow pygame
     4. Liigu kaustasse, kuhu programm on salvestatud: cd (programmi kausta tee)
     5. Käivita programm: python focus_pet_alpha.py
 """
 
-import json
+
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 import tkinter as tk
 from tkinter import messagebox, ttk
-from PIL import Image, ImageTk
 
 from menu_panel import SideMenu  # meie eraldi failis olev külgmenüü
 import ui_styles  # kujundus (värvid, fondid, nupu stiilid) on eraldi failis
@@ -29,128 +28,11 @@ try:
 except Exception:
     pygame = None  # type: ignore
 
-from music_player import MusicPlayer  # muusika loogika on eraldi failis
-
-# Kaustade ja failide teed
-ROOT = Path(__file__).parent
-DATA = ROOT / "data"
-DATA.mkdir(exist_ok=True)
-ASSETS = ROOT / "assets"
-PROGRESS_PATH = DATA / "progress.json"
-
-# Taimeri valikud
-FOCUS_CHOICES = [0.1, 5, 10, 15, 20, 25, 30]               # minutites (0.1 testimiseks)
-SESSIONS_CHOICES = [1, 2, 3]                               # mitu fookussessiooni järjest
-BREAK_CHOICES = [0.1, 3, 5, 7, 10]                         # paus minutites
-POINTS_PER_MINUTE = 1                                      # mitu punkti iga minuti eest
-
-# Stardi ekraani seaded
-START_SCREEN_FILE = "focuspet_start.png"                   # pilt assets kaustas
-START_BUTTON_FONT = ("Bernoru SemiCondensed", 30, "bold")
-START_BUTTON_TEXT_COLOR = "#000000"                      # must tekst
-
-# Tase kasvab, kui saavutatakse järgmised punktid (praegu 0.1 ja 0.2 testiks)
-GROW_THRESHOLDS: Dict[str, float] = {
-    "baby": 0.1,                             # hiljem nt 180
-    "teen": 0.2,                             # hiljem nt 360
-}
-
-# Pildid (taust ja kass koos)
-STAGES = ("baby", "teen", "adult")
-MOODS = ("sad", "neutral", "happy")
-SCENES: Dict[str, Dict[str, str]] = {
-    "baby": {"sad": "cat2.png", "neutral": "cat1.png", "happy": "cat3.png"},
-    "teen": {"sad": "cat5.png", "neutral": "cat4.png", "happy": "cat6.png"},
-    "adult": {"sad": "cat13.png", "neutral": "cat10.png", "happy": "cat12.png"},
-}
-
-# Abifunktsioonid
-def format_mmss(seconds: float) -> str:
-    """Kujundab sekundid kujule MM:SS."""
-
-    s_int = max(0, int(round(seconds)))
-    minutes, secs = divmod(s_int, 60)
-    return f"{minutes:02d}:{secs:02d}"
-
-
-def load_photo_fit(path: Path, max_w: int, max_h: int) -> Optional[ImageTk.PhotoImage]:
-    """
-    Avab pildi ja paneb ta akna peale nii, et tühi ruum ei jääks.
-    Pildi proportsioon jääb samaks ja üle ääre osa lõigatakse keskelt ära.
-
-    :param path: Pildi failitee
-    :param max_w: Ala laius pikslites
-    :param max_h: Ala kõrgus pikslites
-    :return: ImageTk.PhotoImage või None, kui avamine ebaõnnestus
-    """
-    try:
-        img = Image.open(path).convert("RGBA")
-    except Exception:
-        return None
-
-    width, height = img.size
-    if max_w <= 0 or max_h <= 0:
-        return ImageTk.PhotoImage(img)
-
-    # Kasutame max, et pilt KATAB ala (mitte lihtsalt mahub)
-    scale = max(max_w / width, max_h / height)
-    new_w = max(1, int(width * scale))
-    new_h = max(1, int(height * scale))
-
-    if (new_w, new_h) != (width, height):
-        img = img.resize((new_w, new_h), Image.LANCZOS)
-
-    # Lõikame keskelt sobivaks suuruseks
-    if new_w > max_w or new_h > max_h:
-        left = max(0, (new_w - max_w) // 2)
-        top = max(0, (new_h - max_h) // 2)
-        right = left + max_w
-        bottom = top + max_h
-        img = img.crop((left, top, right, bottom))
-
-    return ImageTk.PhotoImage(img)
-
-#  Progresseerumise andmete lugemine/salvestamine
-def load_progress() -> Dict[str, object]:
-    """
-    Loeb JSON-failist kassi seisu (punktid, tase, tuju). Kui puudub, loob uue.
-
-    :return: Sõnastik võtmetega: total, stage, mood, last_session.
-    """
-    defaults: Dict[str, object] = {
-        "total": 0.0,
-        "stage": "baby",
-        "mood": "sad",
-        "last_session": None,
-    }
-
-    try:
-        raw = PROGRESS_PATH.read_text(encoding="utf-8") if PROGRESS_PATH.exists() else "{}"
-        data = json.loads(raw or "{}")
-    except Exception:
-        data = {}
-
-    progress: Dict[str, object] = {**defaults, **data}
-
-    try:
-        progress["total"] = float(progress["total"])  # type: ignore[assignment]
-    except Exception:
-        progress["total"] = 0.0
-
-    if progress["stage"] not in STAGES:
-        progress["stage"] = "baby"
-    if progress["mood"] not in MOODS:
-        progress["mood"] = "sad"
-
-    save_progress(progress)
-    return progress
-
-def save_progress(progress: Dict[str, object]) -> None:
-    """Salvestab kassi seisu progress.json-faili."""
-    PROGRESS_PATH.write_text(
-        json.dumps(progress, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+# Eraldi failides
+from music_player import MusicPlayer  # muusika loogika
+import config as cfg # projekti seaded (tee, valikud, pildid, tasemed)
+from progress_store import load_progress, save_progress  # kassi seisu lugemine/salvestamine
+from image_utils import format_mmss, load_photo_fit # pildi laadimine ja aja kuvamine
 
 # Rakenduse põhiklass
 class App:
@@ -168,8 +50,8 @@ class App:
         root.columnconfigure(0, weight=1)
 
         # Pildid hoian muutujas, et Python neid prügikasti ei viskaks
-        self._img_cache: Optional[ImageTk.PhotoImage] = None
-        self._splash_img_cache: Optional[ImageTk.PhotoImage] = None
+        self._img_cache = None
+        self._splash_img_cache = None
 
         # Kassi ja taimeri olek
         self.progress = load_progress()
@@ -182,7 +64,7 @@ class App:
         self.current_cycle = 0
 
         # Muusika
-        self.music = MusicPlayer(assets_path=ASSETS, pygame_module=pygame)
+        self.music = MusicPlayer(assets_path=cfg.ASSETS, pygame_module=pygame)
 
         # TOAST state (ajutine teade)
         self._toast_after_id = None  # after() id, et saaks cancel'ida
@@ -237,7 +119,7 @@ class App:
 
     def _render_splash(self) -> None:
         """Joonistab stardi ekraani pildi vastavalt akna suurusele."""
-        image_path = ASSETS / START_SCREEN_FILE
+        image_path = cfg.IMAGES / cfg.START_SCREEN_FILE
         width = self.splash_frame.winfo_width() or 1100
         height = self.splash_frame.winfo_height() or 720
 
@@ -282,10 +164,10 @@ class App:
         # Külgmenüü (SideMenu), väljatõmmatav paneel
         self.menu = SideMenu(
             parent=mf,
-            assets_path=ASSETS,
-            focus_choices=FOCUS_CHOICES,
-            sessions_choices=SESSIONS_CHOICES,
-            break_choices=BREAK_CHOICES,
+            assets_path=cfg.ASSETS,
+            focus_choices=cfg.FOCUS_CHOICES,
+            sessions_choices=cfg.SESSIONS_CHOICES,
+            break_choices=cfg.BREAK_CHOICES,
             initial_points=float(self.progress["total"]),
             on_update_scene=self._render_scene,
             on_music_toggle=self._on_music_toggle,
@@ -303,71 +185,23 @@ class App:
         self.timer_lbl.place(relx=0.97, rely=0.05, anchor="ne")
 
         # HUD (püsiv info: focus/break/pause)
-        self.hud_lbl = tk.Label(mf, text="")
-        ui_styles.style_hud_label(self.hud_lbl)
+        self.hud_lbl = ui_styles.make_hud_label(mf)
         self._update_hud()
-        self.hud_lbl.place(relx=0.97, rely=0.17, anchor="ne") 
+        self.hud_lbl.place(relx=0.97, rely=0.17, anchor="ne")
 
         # TOAST ajutine teade
-        self.toast_frame = tk.Frame(mf, bg="#D1CCC1", bd=1, relief="solid")
-        self.toast_lbl = tk.Label(
-            self.toast_frame,
-            text="",
-            font=("Bernoru SemiCondensed", 18, "bold"),
-            bg="#D1CCC1",
-            fg="#000000",
-            padx=18,
-            pady=10,
-        )
-        self.toast_lbl.pack()
-        self.toast_frame.place_forget() # alguses peidetud
+        self.toast_frame, self.toast_lbl = ui_styles.make_toast(mf)
 
-        # START / PAUSE / STOP nupud paremas alumises nurgas
-        # Kasutame tavalist tk.Frame, et taust ei oleks hall
+        # START / PAUSE / STOP nupud
         btns = ui_styles.make_bottom_bar(mf)
-        # paremas alumises nurgas
         btns.place(relx=0.98, rely=0.98, anchor="se")
 
-        # Nupud ise teeme tk.Button-iga, et värvid täpselt töötaks
-        button_font = ("Bernoru SemiCondensed", 18, "bold")
-
-        self.start_btn = tk.Button(
+        self.start_btn, self.pause_btn, self.stop_btn = ui_styles.make_control_buttons(
             btns,
-            text="START",
-            font=button_font,
-            fg="black",
-            bd=0,
-            relief="flat",
-            command=self.on_start,
+            on_start=self.on_start,
+            on_pause=self.on_pause,
+            on_stop=self.on_stop,
         )
-        ui_styles.style_control_button(self.start_btn)
-
-        self.pause_btn = tk.Button(
-            btns,
-            text="PAUSE",
-            font=button_font,
-            fg="black",
-            bd=0,
-            relief="flat",
-            command=self.on_pause,
-        )
-        ui_styles.style_control_button(self.pause_btn)
-
-        self.stop_btn = tk.Button(
-            btns,
-            text="STOP",
-            font=button_font,
-            fg="black",
-            bd=0,
-            relief="flat",
-            command=self.on_stop,
-        )
-        ui_styles.style_control_button(self.stop_btn)
-
-        # Paigutame nupud ühte ritta
-        self.start_btn.grid(row=0, column=0, padx=10)
-        self.pause_btn.grid(row=0, column=1, padx=10)
-        self.stop_btn.grid(row=0, column=2, padx=10)
 
     # Muusika toggle tuleb SideMenu-st
     def _on_music_toggle(self, value: str) -> None:
@@ -564,7 +398,7 @@ class App:
             # Kui aeg saab läbi
             if left <= 0:
                 if self.state == "focusing":
-                    gained = self.focus_len_min * POINTS_PER_MINUTE
+                    gained = self.focus_len_min * cfg.POINTS_PER_MINUTE
                     self.progress["total"] = float(self.progress["total"]) + gained
                     self.progress["last_session"] = datetime.now().isoformat(timespec="seconds")
                     save_progress(self.progress)  # type: ignore[arg-type]
@@ -634,9 +468,9 @@ class App:
         stage = str(self.progress.get("stage", "baby"))
         total = float(self.progress.get("total", 0.0))
 
-        if stage == "baby" and total >= GROW_THRESHOLDS["baby"]:
+        if stage == "baby" and total >= cfg.GROW_THRESHOLDS["baby"]:
             self.progress["stage"] = "teen"
-        elif stage == "teen" and total >= GROW_THRESHOLDS["teen"]:
+        elif stage == "teen" and total >= cfg.GROW_THRESHOLDS["teen"]:
             self.progress["stage"] = "adult"
 
         save_progress(self.progress)  # type: ignore[arg-type]
@@ -646,7 +480,7 @@ class App:
         """Tagastab pildi tee (tase + tuju) järgi."""
         stage = str(self.progress.get("stage", "baby"))
         mood = str(self.progress.get("mood", "sad"))
-        return ASSETS / SCENES[stage][mood]
+        return cfg.IMAGES / cfg.SCENES[stage][mood]
 
     def _render_scene(self) -> None:
         """Laeb ja kuvab pildi aknas sobivas suuruses."""
