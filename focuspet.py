@@ -260,6 +260,7 @@ class App:
 
     def _on_splash_start_clicked(self):
         """Kui vajutame START stardi ekraanil, peidame splash ja näitame main UI."""
+        self.music.sfx("button")
         self.splash_frame.grid_remove()  # peidame stardi ekraani
         self.main_frame.grid()           # toome välja põhivaate
 
@@ -290,21 +291,6 @@ class App:
             on_music_toggle=self._on_music_toggle,
         )
 
-        # MENU toggle wrapper: kui menüü avaneb, peidame HUD-i
-        _original_toggle = self.menu.toggle  # jätame originaali alles
-
-        def _toggle_with_hud():
-            _original_toggle()  # avab/sulgub menüü
-
-            # SideMenu sees on is_open boolean
-            if self.menu.is_open:
-                self._hide_hud()
-            else:
-                self._show_hud()
-
-        self.menu.toggle = _toggle_with_hud
-        self.menu.toggle_btn.configure(command=_toggle_with_hud)
-
         # Seome comboboxid ja sildid nii, et ülejäänud kood ei muutuks
         self.focus_cb = self.menu.focus_cb
         self.sessions_cb = self.menu.sessions_cb
@@ -312,18 +298,19 @@ class App:
         self.points_lbl = self.menu.points_label
         self.status_lbl = self.menu.status_label
 
-        # Taimer paremas ülanurgas (pildi peal)
+        # Taimer paremas ülanurgas
         # Kasutame tk.Label, et saaksime taustavärvi panna
         self.timer_lbl = ui_styles.make_timer_label(mf)
         self.timer_lbl.place(relx=0.97, rely=0.05, anchor="ne")
 
         # HUD (püsiv info: focus/break/pause)
-        self.hud_lbl = tk.Label(mf, text="Ready to start")
+        self.hud_lbl = tk.Label(mf, text="")
         ui_styles.style_hud_label(self.hud_lbl)
-        self.hud_lbl.place(relx=0.08, rely=0.08, anchor="nw")
+        self._update_hud()
+        self.hud_lbl.place(relx=0.97, rely=0.17, anchor="ne") 
 
         # TOAST ajutine teade
-        self.toast_frame = tk.Frame(mf, bg="#D1CCC1", bd=2, relief="solid")
+        self.toast_frame = tk.Frame(mf, bg="#D1CCC1", bd=1, relief="solid")
         self.toast_lbl = tk.Label(
             self.toast_frame,
             text="",
@@ -391,18 +378,6 @@ class App:
         # kui keerati ON ja me oleme focusingus, hakkame kohe mängima
         if (value or "").strip().lower() == "on" and self.state == "focusing":
             self.music.start_for_focusing()
-
-    def _hide_hud(self) -> None:
-        """Peidab HUD-i (kasutame, kui MENU on avatud)."""
-        try:
-            self.hud_lbl.place_forget()
-        except Exception:
-            pass
-
-    def _show_hud(self) -> None:
-        """Näitab HUD-i tagasi (kasutame, kui MENU on kinni)."""
-        self.hud_lbl.place(relx=0.08, rely=0.08, anchor="nw")
-        self._update_hud()
 
     # Nuppude funktsioonid
     def on_start(self) -> None:
@@ -546,21 +521,16 @@ class App:
 
         if self.state == "focusing":
             text = f"Session {cur}/{total}"
-            fg = "#000000"
         elif self.state == "break":
             text = "Break"
-            fg = "#261710"
         elif self.state == "paused_focusing":
-            text = "Paused ⏸"
-            fg = "#261710"
+            text = "Paused"
         elif self.state == "paused_break":
-            text = "Paused ⏸"
-            fg = "#261710"
+            text = "Paused"
         else:
             text = "Ready to start"
-            fg = "#261710"
 
-        self.hud_lbl.configure(text=text, fg=fg)
+        self.hud_lbl.configure(text=text)
 
     def show_toast(self, text: str, kind: str = "info", ms: int = 2500) -> None:
         """
@@ -577,8 +547,8 @@ class App:
         self.toast_frame.configure(bg=bg)
         self.toast_lbl.configure(text=text, bg=bg, fg=fg)
 
-        # place toast keskele, nuppude kohale
-        self.toast_frame.place(relx=0.5, rely=0.86, anchor="center")
+        # toast teade asukoht
+        self.toast_frame.place(relx=0.525, rely=0.15, anchor="center")
 
         # kui eelmine toast oli aktiivne, cancel'ime
         if self._toast_after_id is not None:

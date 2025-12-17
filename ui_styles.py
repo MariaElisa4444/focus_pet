@@ -11,6 +11,7 @@ COLOR_BTN_TEXT = "black"
 COLOR_BOTTOM_BAR_BG = "#643F2C"
 COLOR_TIMER_BG = "#FFF3CD"
 COLOR_TIMER_TEXT = "#000000"
+COLOR_HUD_TEXT = "#3B2A21"
 
 COLOR_SPLASH_BTN_BG = "#D1CCC1"
 COLOR_SPLASH_BTN_ACTIVE = "#B7B3A9"
@@ -20,6 +21,7 @@ COLOR_SPLASH_TEXT = "#000000"
 FONT_SPLASH_BTN = ("Bernoru SemiCondensed", 30, "bold")
 FONT_BOTTOM_BTNS = ("Bernoru SemiCondensed", 18, "bold")
 FONT_TIMER = ("Bernoru SemiCondensed", 50, "bold")
+FONT_HUD = ("Bernoru SemiCondensed", 20, "bold")
 
 def style_splash_start_button(btn: tk.Button) -> None:
     """Paneme START nupule ühtsed stiilid."""
@@ -53,13 +55,13 @@ def style_control_button(btn: tk.Button) -> None:
 def style_hud_label(lbl: tk.Label) -> None:
     """HUD stiilid. Näitab focus/break/pause olekut ekraani nurgas."""
     lbl.configure(
-        bg=COLOR_BTN_BG,
-        fg=COLOR_BTN_TEXT,
-        font=FONT_BOTTOM_BTNS,
+        bg=COLOR_TIMER_BG,
+        fg=COLOR_HUD_TEXT,
+        font=FONT_HUD,
         bd=0,
-        relief="solid",
-        padx=20,
-        pady=20,
+        relief="flat",
+        padx=5,
+        pady=5,
         highlightthickness=0,
     )
 
