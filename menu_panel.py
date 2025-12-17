@@ -52,7 +52,7 @@ class SideMenu:
         # width=self.closed_width tähendab, et paneel algab väikese ribana
         self.frame.place(x=0, y=0, relheight=1.0, width=self.closed_width)
 
-        # ----- ttk stiilide loomine -----
+        # ttk stiilide loomine
         # ttk.Style võimaldab meil muuta kõiki Label'eid ja Comboboxe korraga, et menüü näeks ilus välja
         style = ttk.Style()
 
@@ -84,7 +84,7 @@ class SideMenu:
             ],
         )
 
-        # ----- MENU nupp -----
+        # MENU nupp
         # See nupp on kogu aeg nähtav. Vajutades paneel avaneb/sulgub
         self.toggle_btn = tk.Button(
             self.frame,
@@ -100,14 +100,14 @@ class SideMenu:
         # Paigutame nupu paneeli ülemisse serva
         self.toggle_btn.place(relx=0.5, rely=0.02, anchor="n")
 
-        # ----- SISEMINE PANEEL -----
+        # SISEMINE PANEEL
         # Siia tulevad kõik seaded (comboboxid ja sildid)
         self.inner = tk.Frame(self.frame, bg="#D2CDC2")
         # Alguses inner ei ole nähtav. Näitame ainult siis, kui kasutaja avab paneeli
 
-        # ----- Loome kõik valikud, mis ilmuvad menüüs -----
+        # Loome kõik valikud, mis ilmuvad menüüs
 
-        # ----- FOCUS (min) -----
+        # FOCUS (min)
         ttk.Label(
             self.inner,
             text="Focus (min)",
@@ -124,7 +124,7 @@ class SideMenu:
         self.focus_cb.set(str(focus_choices[0]))         # vaikimisi võtab esimese väärtuse
         self.focus_cb.grid(row=1, column=0, sticky="w", pady=(0, 10))
 
-        # ----- SESSIONS -----
+        # SESSIONS
         ttk.Label(
             self.inner,
             text="Sessions",
@@ -141,7 +141,7 @@ class SideMenu:
         self.sessions_cb.set(str(sessions_choices[0]))
         self.sessions_cb.grid(row=3, column=0, sticky="w", pady=(0, 10))
 
-        # ----- BREAK (min) -----
+        # BREAK (min)
         ttk.Label(
             self.inner,
             text="Break (min)",
@@ -158,24 +158,13 @@ class SideMenu:
         self.break_cb.set(str(break_choices[0]))
         self.break_cb.grid(row=5, column=0, sticky="w", pady=(0, 14))
 
-        # ----- POINTS (näitab kasutaja teenitud punkte) -----
+        # POINTS (näitab kasutaja teenitud punkte)
         self.points_label = ttk.Label(
             self.inner,
             text=f"Points: {initial_points:.1f}",
             style="Menu.TLabel",
         )
         self.points_label.grid(row=6, column=0, sticky="w", pady=(0, 8))
-
-        # ----- STATUS (näitab sõnumit: "Ready to start", "Session done!") -----
-        self.status_label = ttk.Label(
-            self.inner,
-            text="Ready to start",
-            foreground="#2e7d32",               # roheline tekst, kui kõik OK
-            wraplength=260,                       # tekst murdub paneeli sees
-            justify="left",
-            style="Menu.TLabel",
-        )
-        self.status_label.grid(row=7, column=0, sticky="w")
 
         # MUUSIKA BLOKK
         ttk.Label(
@@ -198,7 +187,7 @@ class SideMenu:
         self.music_cb.set("off")
         self.music_cb.bind("<<ComboboxSelected>>", self._handle_music_change)
 
-    # ----- PANEELI AVAMINE / SULGEMINE -----
+    # PANEELI AVAMINE / SULGEMINE
 
     def toggle(self) -> None:
         """
@@ -210,13 +199,13 @@ class SideMenu:
         """
 
         if self.is_open:
-            # ----- SULGEME PANEELI -----
+            # SULGEME PANEELI
             self.is_open = False
             self.inner.place_forget()             # peidame sisu ära
             self.frame.place_configure(width=self.closed_width)
 
         else:
-            # ----- AVAME PANEELI -----
+            # AVAME PANEELI
             self.is_open = True
             self.frame.place_configure(width=self.open_width)
 

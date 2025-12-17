@@ -296,7 +296,6 @@ class App:
         self.sessions_cb = self.menu.sessions_cb
         self.break_cb = self.menu.break_cb
         self.points_lbl = self.menu.points_label
-        self.status_lbl = self.menu.status_label
 
         # Taimer paremas ülanurgas
         # Kasutame tk.Label, et saaksime taustavärvi panna
@@ -411,10 +410,6 @@ class App:
         # Muusika ainult focusing ajal
         self.music.start_for_focusing()
 
-        self.status_lbl.configure(
-            text=f"Session {self.current_cycle}/{self.total_cycles} started!",
-            foreground="#2e7d32",
-        )
         self.timer_lbl.configure(text=format_mmss(self.end_ts - time.time()))
 
         if self.progress["mood"] == "sad":
@@ -452,8 +447,6 @@ class App:
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
 
-            self.status_lbl.configure(text="Paused.", foreground="#b26a00")
-
             # nupp PAUSE -> RESUME
             self.pause_btn.configure(text="RESUME")
 
@@ -483,8 +476,6 @@ class App:
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
 
-            self.status_lbl.configure(text="Resumed.", foreground="#2e7d32")
-
             # nupp RESUME -> PAUSE
             self.pause_btn.configure(text="PAUSE")
 
@@ -505,9 +496,6 @@ class App:
             self.progress["mood"] = "sad"
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
-            self.status_lbl.configure(
-                text="Session cancelled - no points added.", foreground="#e53935"
-            )
             # nupp tagasi PAUSE peale
             self.pause_btn.configure(text="PAUSE")
 
@@ -602,14 +590,7 @@ class App:
                         self.state = "break"
                         self.end_ts = time.time() + self.break_len_min * 60
                         self._update_hud()
-                        self.show_toast(f"Focus session finished! (+{gained:.1f}). Break {self.break_len_min:g} min", kind="info")
-                        self.status_lbl.configure(
-                            text=(
-                                f"Session {self.current_cycle} finished "
-                                f"(+{gained:.1f}). Break {self.break_len_min:g} min"
-                            ),
-                            foreground="#866a24",
-                        )
+                        self.show_toast(f"Focus session finished! (+{gained:.1f}) Break {self.break_len_min:g} min", kind="info")
                     else:
                         # kõik sessioonid tehtud
                         self.music.stop()
@@ -617,11 +598,7 @@ class App:
                         self.end_ts = None
                         self.timer_lbl.configure(text="00:00")
                         self._update_hud()
-                        self.show_toast(f"Good job! All sessions done :)", kind="info")
-                        self.status_lbl.configure(
-                            text=f"All {self.total_cycles} sessions done! (+{gained:.1f})",
-                            foreground="#866a24",
-                        )
+                        self.show_toast("Good job! All sessions done :)", kind="info")
                         self._grow_stage_if_needed()
                         self.progress["mood"] = "happy"
                         save_progress(self.progress)  # type: ignore[arg-type]
@@ -639,10 +616,6 @@ class App:
 
                     self.show_toast("Break ended. Back to focus!", kind="info")
 
-                    self.status_lbl.configure(
-                        text=f"Session {self.current_cycle}/{self.total_cycles} started!",
-                        foreground="#866a24",
-                    )
                     self.progress["mood"] = "neutral"
                     save_progress(self.progress)  # type: ignore[arg-type]
                     self._render_scene()
