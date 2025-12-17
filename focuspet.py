@@ -9,7 +9,6 @@ Käivitamisjuhend:
     5. Käivita programm: python focus_pet_alpha.py
 """
 
-
 import time
 from datetime import datetime
 from pathlib import Path
