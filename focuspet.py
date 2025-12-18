@@ -9,10 +9,9 @@ Käivitamisjuhend:
     5. Käivita programm: python focus_pet_alpha.py
 """
 
-import time
+
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -32,6 +31,8 @@ from music_player import MusicPlayer  # muusika loogika
 import config as cfg # projekti seaded (tee, valikud, pildid, tasemed)
 from progress_store import load_progress, save_progress  # kassi seisu lugemine/salvestamine
 from image_utils import format_mmss, load_photo_fit # pildi laadimine ja aja kuvamine
+from toast_manager import ToastManager # ajutised sõnumid
+from timer import TimerEngine # taimeri olekumasin
 
 # Rakenduse põhiklass
 class App:
@@ -52,21 +53,14 @@ class App:
         self._img_cache = None
         self._splash_img_cache = None
 
-        # Kassi ja taimeri olek
+        # Kassi ja progressi olek
         self.progress = load_progress()
-        self.state = "idle"  # idle | focusing | break
-        self.end_ts: Optional[float] = None
-        self.paused_left: float | None = None  # mitu sekundit on pausil alles
-        self.focus_len_min = 25.0
-        self.break_len_min = 5.0
-        self.total_cycles = 3
-        self.current_cycle = 0
+
+        # Taimeri olek
+        self.engine = TimerEngine()
 
         # Muusika
         self.music = MusicPlayer(assets_path=cfg.ASSETS, pygame_module=pygame)
-
-        # TOAST state (ajutine teade)
-        self._toast_after_id = None  # after() id, et saaks cancel'ida
 
         # Kaks erinevat ekraani: stardi ekraan ja põhi ekraan
         self.splash_frame = tk.Frame(root, bg="#fbe7b3")
@@ -190,6 +184,7 @@ class App:
 
         # TOAST ajutine teade
         self.toast_frame, self.toast_lbl = ui_styles.make_toast(mf)
+        self.toast = ToastManager(self.root, self.toast_frame, self.toast_lbl)
 
         # START / PAUSE / STOP nupud
         btns = ui_styles.make_bottom_bar(mf)
@@ -208,257 +203,183 @@ class App:
         self.music.handle_toggle(value)
 
         # kui keerati ON ja me oleme focusingus, hakkame kohe mängima
-        if (value or "").strip().lower() == "on" and self.state == "focusing":
+        if (value or "").strip().lower() == "on" and self.engine.state == "focusing":
             self.music.start_for_focusing()
 
     # Nuppude funktsioonid
     def on_start(self) -> None:
         """Käivitab uue fookussessiooni."""
-        self.music.sfx("button") 
+        self.music.sfx("button")
 
-        if self.state not in ("idle", "break"):
+        if self.engine.state not in ("idle", "break"):
             return
 
         try:
-            self.focus_len_min = float(self.focus_cb.get())
+            focus_min = float(self.focus_cb.get())
         except Exception:
-            self.focus_len_min = 25.0
+            focus_min = 25.0
 
         try:
-            self.total_cycles = int(self.sessions_cb.get())
+            cycles = int(self.sessions_cb.get())
         except Exception:
-            self.total_cycles = 3
+            cycles = 3
 
         try:
-            self.break_len_min = float(self.break_cb.get())
+            break_min = float(self.break_cb.get())
         except Exception:
-            self.break_len_min = 5.0
+            break_min = 5.0
 
-        if self.state == "idle":
-            self.current_cycle = 1
+        self.engine.start(focus_min, break_min, cycles)
 
-        self.state = "focusing"
-        self.end_ts = time.time() + self.focus_len_min * 60
+        if self.engine.state == "focusing":
+            self.music.start_for_focusing()
 
-        # Muusika ainult focusing ajal
-        self.music.start_for_focusing()
-
-        self.timer_lbl.configure(text=format_mmss(self.end_ts - time.time()))
+        left = self.engine.seconds_left() or 0.0
+        self.timer_lbl.configure(text=format_mmss(left))
 
         if self.progress["mood"] == "sad":
             self.progress["mood"] = "neutral"
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
-        
-        # Teaded ekraanil
+
         self._update_hud()
-        self.show_toast(f"Session {self.current_cycle}/{self.total_cycles} started!", kind="info")
+        self.toast.show(f"Session {self.engine.current_cycle}/{self.engine.total_cycles} started!", kind="info")
 
 
     def on_pause(self) -> None:
         """Lülitab taimeri pausile või jätkab (PAUSE/RESUME)."""
         self.music.sfx("button")
 
-        # 1) Aktiivse sessiooni pausile panemine
-        if self.state in ("focusing", "break") and self.end_ts:
-            left = max(0.0, self.end_ts - time.time())
-            self.paused_left = left
+        before = self.engine.state
+        self.engine.pause_toggle()
+        after = self.engine.state
 
-            # Pausil muusika pausile
-            self.music.pause()
-
-            # jätame meelde, mis faasis pausile läksime
-            if self.state == "focusing":
-                self.state = "paused_focusing"
-            else:
-                self.state = "paused_break"
-
-            self.end_ts = None
+        left = self.engine.seconds_left()
+        if left is not None:
             self.timer_lbl.configure(text=format_mmss(left))
+
+        if after in ("paused_focusing", "paused_break"):
+            self.music.pause()
+            self.pause_btn.configure(text="RESUME")
 
             self.progress["mood"] = "sad"
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
 
-            # nupp PAUSE -> RESUME
-            self.pause_btn.configure(text="RESUME")
+            self.toast.show("Paused", kind="info")
 
-            self._update_hud()
-            self.show_toast("Paused", kind="info")
+        elif before in ("paused_focusing", "paused_break") and after in ("focusing", "break"):
+            self.pause_btn.configure(text="PAUSE")
 
-        # 2) Pausilt jätkamine
-        elif self.state in ("paused_focusing", "paused_break") and self.paused_left is not None:
-            if self.state == "paused_focusing":
-                self.state = "focusing"
-                mood = "neutral"
-            else:
-                self.state = "break"
-                mood = "neutral"
-
-            # kui tagasi focusingusse, siis muusika edasi
-            if self.state == "focusing":
+            if after == "focusing":
                 self.music.unpause()
                 self.music.start_for_focusing()
             else:
                 self.music.stop()
 
-            self.end_ts = time.time() + self.paused_left
-            self.paused_left = None
-
-            self.progress["mood"] = mood
+            self.progress["mood"] = "neutral"
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
 
-            # nupp RESUME -> PAUSE
-            self.pause_btn.configure(text="PAUSE")
+            self.toast.show("Resumed", kind="info")
 
-            self._update_hud()
-            self.show_toast("Resumed", kind="info")
+        self._update_hud()
+
 
     def on_stop(self) -> None:
         """Tühistab sessiooni täielikult."""
         self.music.sfx("button")
 
-        if self.state in ("focusing", "break", "paused_focusing", "paused_break"):
-            self.state = "idle"
+        if self.engine.state in ("focusing", "break", "paused_focusing", "paused_break"):
+            self.engine.stop()
+
             self.music.stop()
-            self.end_ts = None
-            self.paused_left = None
-            self.current_cycle = 0
             self.timer_lbl.configure(text="00:00")
+
             self.progress["mood"] = "sad"
             save_progress(self.progress)  # type: ignore[arg-type]
             self._render_scene()
-            # nupp tagasi PAUSE peale
-            self.pause_btn.configure(text="PAUSE")
 
+            self.pause_btn.configure(text="PAUSE")
             self._update_hud()
-            self.show_toast("Session cancelled", kind="error")
+            self.toast.show("Session cancelled", kind="error")
+
 
     def _update_hud(self) -> None:
-        """Uuendab püsivat HUD teksti (Session x/y + Focus/Break/Paused)."""
-        total = int(self.total_cycles) if self.total_cycles else 0
-        cur = int(self.current_cycle) if self.current_cycle else 0
+        """Uuendab püsivat HUD teksti (Ready/Session/Break/Paused)."""
+        self.hud_lbl.configure(text=self.engine.hud_text())
 
-        if self.state == "focusing":
-            text = f"Session {cur}/{total}"
-        elif self.state == "break":
-            text = "Break"
-        elif self.state == "paused_focusing":
-            text = "Paused"
-        elif self.state == "paused_break":
-            text = "Paused"
-        else:
-            text = "Ready to start"
-
-        self.hud_lbl.configure(text=text)
-
-    def show_toast(self, text: str, kind: str = "info", ms: int = 2500) -> None:
-        """
-        Näitab ajutist teadet peamisel ekraanil.
-        kind: info | error
-        ms: kui kaua (millisekundites)
-        """
-        colors = {
-            "info":    ("#D1CCC1", "#261710"),
-            "error":   ("#D1CCC1", "#6D0C0C"),
-        }
-        bg, fg = colors.get(kind, colors["info"])
-
-        self.toast_frame.configure(bg=bg)
-        self.toast_lbl.configure(text=text, bg=bg, fg=fg)
-
-        # toast teade asukoht
-        self.toast_frame.place(relx=0.525, rely=0.08, anchor="center")
-
-        # kui eelmine toast oli aktiivne, cancel'ime
-        if self._toast_after_id is not None:
-            try:
-                self.root.after_cancel(self._toast_after_id)
-            except Exception:
-                pass
-
-        self._toast_after_id = self.root.after(ms, self.hide_toast)
-
-    def hide_toast(self) -> None:
-        """Peidab toast teate."""
-        self.toast_frame.place_forget()
-        self._toast_after_id = None
 
     # Taimeri tsükkel
     def _tick(self) -> None:
-        """Uuendab taimerit iga 200 ms järel ja vahetab olekuid piirhetkedel."""
-        now = time.time()
+        """Uuendab taimerit ja reageerib oleku muutustele."""
+        left = self.engine.seconds_left()
+        if left is not None:
+            self.timer_lbl.configure(text=format_mmss(left))
 
-        if self.state in ("focusing", "break") and self.end_ts:
-            left = self.end_ts - now
-            self.timer_lbl.configure(text=format_mmss(max(0.0, left)))
+        event = self.engine.tick()
 
-            # Kui aeg saab läbi
-            if left <= 0:
-                if self.state == "focusing":
-                    gained = self.focus_len_min * cfg.POINTS_PER_MINUTE
-                    self.progress["total"] = float(self.progress["total"]) + gained
-                    self.progress["last_session"] = datetime.now().isoformat(timespec="seconds")
-                    save_progress(self.progress)  # type: ignore[arg-type]
-                    self.points_lbl.configure(text=f"Points: {float(self.progress['total']):.1f}")
-                    self._grow_stage_if_needed()
+        if event == "focus_finished":
+            gained = self.engine.focus_len_min * cfg.POINTS_PER_MINUTE
+            self.progress["total"] = float(self.progress["total"]) + gained
+            self.progress["last_session"] = datetime.now().isoformat(timespec="seconds")
+            save_progress(self.progress)  # type: ignore[arg-type]
+            self.points_lbl.configure(text=f"Points: {float(self.progress['total']):.1f}")
+            self._grow_stage_if_needed()
 
-                    # Kass on rõõmus
-                    old_mood = str(self.progress.get("mood", "sad"))
-                    self.progress["mood"] = "happy"
-                    save_progress(self.progress)  # type: ignore[arg-type]
-                    self._render_scene()
-                    # timer lõppes -> sfx
-                    self.music.sfx("timer")
+            old_mood = str(self.progress.get("mood", "sad"))
+            self.progress["mood"] = "happy"
+            save_progress(self.progress)  # type: ignore[arg-type]
+            self._render_scene()
 
-                    # kui kass muutub rõõmsaks, mängime meow heli
-                    if old_mood != "happy":
-                        self.music.sfx("meow", cooldown=0.25)
+            self.music.sfx("timer")
+            if old_mood != "happy":
+                self.music.sfx("meow", cooldown=0.25)
 
+            # anname SFX-ile hetke aega kõlada, siis peatame taustamuusika
+            self.root.after(300, self.music.stop)
+            self.toast.show(
+                f"Focus session finished! (+{gained:.1f}) Break {self.engine.break_len_min:g} min",
+                kind="info",
+            )
 
-                    if self.current_cycle < self.total_cycles:
-                        # läheb pausile
-                        self.music.stop()
-                        self.state = "break"
-                        self.end_ts = time.time() + self.break_len_min * 60
-                        self._update_hud()
-                        self.show_toast(f"Focus session finished! (+{gained:.1f}) Break {self.break_len_min:g} min", kind="info")
-                    else:
-                        # kõik sessioonid tehtud
-                        self.music.stop()
-                        self.state = "idle"
-                        self.end_ts = None
-                        self.timer_lbl.configure(text="00:00")
-                        self._update_hud()
-                        self.show_toast("Good job! All sessions done :)", kind="info")
-                        self._grow_stage_if_needed()
-                        self.progress["mood"] = "happy"
-                        save_progress(self.progress)  # type: ignore[arg-type]
-                        self._render_scene()
+        elif event == "break_finished":
+            self.music.start_for_focusing()
+            self.music.sfx("timer")
 
-                else:
-                    # paus lõppes, uus fookus
-                    self.current_cycle += 1
-                    self.state = "focusing"
-                    self.end_ts = time.time() + self.focus_len_min * 60
+            self.progress["mood"] = "neutral"
+            save_progress(self.progress)  # type: ignore[arg-type]
+            self._render_scene()
 
-                    # focusing algab -> muusika
-                    self.music.start_for_focusing()
-                    self.music.sfx("timer")
+            self.toast.show("Break ended. Back to focus!", kind="info")
 
-                    self.show_toast("Break ended. Back to focus!", kind="info")
+        elif event == "all_done":
+            # Viimase fookussessiooni punktid (kuna engine annab all_done otse)
+            gained = self.engine.focus_len_min * cfg.POINTS_PER_MINUTE
+            self.progress["total"] = float(self.progress["total"]) + gained
+            self.progress["last_session"] = datetime.now().isoformat(timespec="seconds")
+            save_progress(self.progress)  # type: ignore[arg-type]
+            self.points_lbl.configure(text=f"Points: {float(self.progress['total']):.1f}")
+            self._grow_stage_if_needed()
 
-                    self.progress["mood"] = "neutral"
-                    save_progress(self.progress)  # type: ignore[arg-type]
-                    self._render_scene()
+            # Lõpuheli (enne stop'i!)
+            old_mood = str(self.progress.get("mood", "sad"))
+            self.music.sfx("timer")
+            if old_mood != "happy":
+                self.music.sfx("meow", cooldown=0.25)
 
-        # tick() tahab is_focusing parameetrit
-        self.music.tick(is_focusing=(self.state == "focusing"))
+            # Lõpuseis (muusika kinni, tuju happy)
+            self.root.after(300, self.music.stop)
+            self.timer_lbl.configure(text="00:00")
 
+            self.progress["mood"] = "happy"
+            save_progress(self.progress)  # type: ignore[arg-type]
+            self._render_scene()
+
+            self.toast.show("Good job! All sessions done :)", kind="info")
+
+        self.music.tick(is_focusing=(self.engine.state == "focusing"))
         self._update_hud()
-
-        # korduskutse iga 0.2 sekundi järel
         self.root.after(200, self._tick)
 
     # Tase kasvab
