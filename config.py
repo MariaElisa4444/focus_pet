@@ -14,9 +14,9 @@ IMAGES = ASSETS / "images"
 PROGRESS_PATH = DATA / "progress.json"
 
 # Taimeri valikud
-FOCUS_CHOICES = [0.1, 5, 10, 15, 20, 25, 30]               # minutites (0.1 testimiseks)
+FOCUS_CHOICES = [0.1, 5, 10, 15, 20, 25, 30, 40, 45]               # minutites (0.1 testimiseks)
 SESSIONS_CHOICES = [1, 2, 3]                               # mitu fookussessiooni järjest
-BREAK_CHOICES = [0.1, 3, 5, 7, 10]                         # paus minutites
+BREAK_CHOICES = [0.1, 3, 5, 7, 10, 15]                         # paus minutites
 POINTS_PER_MINUTE = 1                                      # mitu punkti iga minuti eest
 
 # Stardi ekraani seaded
